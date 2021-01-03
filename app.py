@@ -22,7 +22,7 @@ TRUELAYER_CLIENT_SECRET = config('TRUELAYER_CLIENT_SECRET')
 
 GOOGLE_CLIENT_ID = config('GOOGLE_CLIENT_ID')
 GOOGLE_CLIENT_SECRET = config('GOOGLE_CLIENT_SECRET')
-GOOGLE_DISCOVERY_URL = ("https://accounts.google.com/.well-known/openid-configuration")
+GOOGLE_OIDC_CONFIG = requests.get("https://accounts.google.com/.well-known/openid-configuration").json()
 APP_URL = config('APP_URL', default='https://localhost:5000')
 
 DB_PATH = str(Path().home().joinpath('db.sql'))
@@ -101,16 +101,10 @@ def index():
         return redirect(url_for('login'))
 
 
-def get_google_provider_cfg():
-    return requests.get(GOOGLE_DISCOVERY_URL).json()
-
-
 @app.route("/login")
 def login():
-    google_provider_cfg = get_google_provider_cfg()
-    authorization_endpoint = google_provider_cfg["authorization_endpoint"]
     request_uri = client.prepare_request_uri(
-        authorization_endpoint,
+        GOOGLE_OIDC_CONFIG["authorization_endpoint"],
         redirect_uri=urljoin(APP_URL, "/google_callback"),
         scope=["openid", "email", "profile"],
     )
@@ -120,10 +114,8 @@ def login():
 @app.route("/google_callback")
 def google_callback():
     code = request.args.get("code")
-    google_provider_cfg = get_google_provider_cfg()
-    token_endpoint = google_provider_cfg["token_endpoint"]
     token_url, headers, body = client.prepare_token_request(
-        token_endpoint,
+        GOOGLE_OIDC_CONFIG["token_endpoint"],
         authorization_response=request.url,
         redirect_uri=urljoin(APP_URL, "/google_callback"),
         code=code
@@ -135,8 +127,7 @@ def google_callback():
         auth=(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET),
     )
     client.parse_request_body_response(json.dumps(token_response.json()))
-    userinfo_endpoint = google_provider_cfg["userinfo_endpoint"]
-    uri, headers, body = client.add_token(userinfo_endpoint)
+    uri, headers, body = client.add_token(GOOGLE_OIDC_CONFIG["userinfo_endpoint"])
     userinfo_response = requests.get(uri, headers=headers, data=body)
     if userinfo_response.json().get("email_verified"):
         unique_id = userinfo_response.json()["sub"]
