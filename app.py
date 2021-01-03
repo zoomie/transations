@@ -8,7 +8,6 @@ import json
 from pathlib import Path
 from urllib.parse import urljoin
 
-from decouple import config
 from flask import Flask, redirect, request, url_for, current_app
 from werkzeug.datastructures import Headers
 from werkzeug.wrappers import Response
@@ -17,9 +16,10 @@ from flask_login import LoginManager, current_user, login_required, login_user,\
     logout_user, UserMixin
 from oauthlib.oauth2 import WebApplicationClient
 
-TRUELAYER_CLIENT_ID = config('TRUELAYER_CLIENT_ID')
-TRUELAYER_CLIENT_SECRET = config('TRUELAYER_CLIENT_SECRET')
-IS_SANDBOX = config('IS_SANDBOX', cast=bool, default=False)
+TRUELAYER_CLIENT_ID = os.environ['TRUELAYER_CLIENT_ID']
+TRUELAYER_CLIENT_SECRET = os.environ['TRUELAYER_CLIENT_SECRET']
+IS_SANDBOX = os.getenv('IS_SANDBOX', False)
+IS_SANDBOX = True if IS_SANDBOX in [True, 'True', 'true'] else False
 if IS_SANDBOX:
     TRUELAYER_AUTH_URL = 'https://auth.truelayer-sandbox.com'
     TRUELAYER_API_URL = 'https://api.truelayer-sandbox.com'
@@ -27,15 +27,15 @@ else:
     TRUELAYER_AUTH_URL = 'https://auth.truelayer.com'
     TRUELAYER_API_URL = 'https://api.truelayer.com'
 
-GOOGLE_CLIENT_ID = config('GOOGLE_CLIENT_ID')
-GOOGLE_CLIENT_SECRET = config('GOOGLE_CLIENT_SECRET')
+GOOGLE_CLIENT_ID = os.environ['GOOGLE_CLIENT_ID']
+GOOGLE_CLIENT_SECRET = os.environ['GOOGLE_CLIENT_SECRET']
 GOOGLE_OIDC_CONFIG = requests.get("https://accounts.google.com/.well-known/openid-configuration").json()
-APP_URL = config('APP_URL', default='https://localhost:5000')
+APP_URL = os.environ['APP_URL']
 
 DB_PATH = str(Path().home().joinpath('db.sql'))
 
 app = Flask(__name__)
-app.secret_key = config("FLASK_SECRET_KEY", default=os.urandom(16))
+app.secret_key = os.urandom(16)
 
 login_manager = LoginManager()
 login_manager.init_app(app)
