@@ -115,13 +115,13 @@ def login():
 def google_callback():
     code = request.args.get("code")
     token_url, headers, body = client.prepare_token_request(
-        GOOGLE_OIDC_CONFIG["token_endpoint"],
+        token_url=GOOGLE_OIDC_CONFIG["token_endpoint"],
         authorization_response=request.url,
-        redirect_uri=urljoin(APP_URL, "/google_callback"),
+        redirect_url=request.base_url,
         code=code
     )
     token_response = requests.post(
-        token_url,
+        url=token_url,
         headers=headers,
         data=body,
         auth=(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET),
