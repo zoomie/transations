@@ -23,7 +23,7 @@ TRUELAYER_CLIENT_SECRET = config('TRUELAYER_CLIENT_SECRET')
 GOOGLE_CLIENT_ID = config('GOOGLE_CLIENT_ID')
 GOOGLE_CLIENT_SECRET = config('GOOGLE_CLIENT_SECRET')
 GOOGLE_DISCOVERY_URL = ("https://accounts.google.com/.well-known/openid-configuration")
-APP_URL = config('BASE_URL', default='https://localhost:5000')
+APP_URL = config('API_URL', default='https://localhost:5000')
 
 DB_PATH = str(Path().home().joinpath('db.sql'))
 
@@ -38,17 +38,10 @@ client = WebApplicationClient(GOOGLE_CLIENT_ID)
 
 def setup_db():
     conn = sqlite3.connect(DB_PATH)
-    curs = conn.cursor()
-    sql = '''
-    CREATE TABLE user (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      email TEXT UNIQUE NOT NULL,
-      token TEXT UNIQUE
-    );'''
     try:
-        curs.execute(sql)
-        conn.commit()
+        with app.open_resource("schema.sql") as f:
+            conn.executescript(f.read().decode("utf8"))
+            conn.commit()
     except sqlite3.OperationalError:
         pass
 
