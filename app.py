@@ -9,7 +9,7 @@ from pathlib import Path
 from urllib.parse import urljoin
 
 from decouple import config
-from flask import Flask, redirect, request, url_for
+from flask import Flask, redirect, request, url_for, current_app
 from werkzeug.datastructures import Headers
 from werkzeug.wrappers import Response
 import requests
@@ -23,7 +23,7 @@ TRUELAYER_CLIENT_SECRET = config('TRUELAYER_CLIENT_SECRET')
 GOOGLE_CLIENT_ID = config('GOOGLE_CLIENT_ID')
 GOOGLE_CLIENT_SECRET = config('GOOGLE_CLIENT_SECRET')
 GOOGLE_DISCOVERY_URL = ("https://accounts.google.com/.well-known/openid-configuration")
-BASE_URL = config('BASE_URL', default='https://localhost:5000')
+APP_URL = config('BASE_URL', default='https://localhost:5000')
 
 DB_PATH = str(Path().home().joinpath('db.sql'))
 
@@ -118,7 +118,7 @@ def login():
     authorization_endpoint = google_provider_cfg["authorization_endpoint"]
     request_uri = client.prepare_request_uri(
         authorization_endpoint,
-        redirect_uri=urljoin(BASE_URL, "/google_callback"),
+        redirect_uri=urljoin(APP_URL, "/google_callback"),
         scope=["openid", "email", "profile"],
     )
     return redirect(request_uri)
@@ -169,7 +169,7 @@ def truelayer_signin():
         'client_id': TRUELAYER_CLIENT_ID,
         'scope': 'accounts balance transactions offline_access',
         'nonce': int(time.time()),
-        'redirect_uri': urljoin(BASE_URL, 'truelayer_callback'),
+        'redirect_uri': urljoin(APP_URL, 'truelayer_callback'),
         'enable_mock': 'true',
     })
     auth_uri = f'https://auth.truelayer-sandbox.com/?{query}'
@@ -186,7 +186,7 @@ def truelayer_callback():
         'client_secret': TRUELAYER_CLIENT_SECRET,
         'code': access_code,
         'grant_type': 'authorization_code',
-        'redirect_uri': urljoin(BASE_URL, 'truelayer_callback'),
+        'redirect_uri': urljoin(APP_URL, 'truelayer_callback'),
     }
     res = requests.post('https://auth.truelayer-sandbox.com/connect/token', data=body)
     token = res.json().get('access_token')
