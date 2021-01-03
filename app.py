@@ -19,6 +19,13 @@ from oauthlib.oauth2 import WebApplicationClient
 
 TRUELAYER_CLIENT_ID = config('TRUELAYER_CLIENT_ID')
 TRUELAYER_CLIENT_SECRET = config('TRUELAYER_CLIENT_SECRET')
+IS_SANDBOX = config('IS_SANDBOX', cast=bool, default=False)
+if IS_SANDBOX:
+    TRUELAYER_AUTH_URL = 'https://auth.truelayer-sandbox.com'
+    TRUELAYER_API_URL = 'https://api.truelayer-sandbox.com'
+else:
+    TRUELAYER_AUTH_URL = 'https://auth.truelayer.com'
+    TRUELAYER_API_URL = 'https://api.truelayer.com'
 
 GOOGLE_CLIENT_ID = config('GOOGLE_CLIENT_ID')
 GOOGLE_CLIENT_SECRET = config('GOOGLE_CLIENT_SECRET')
@@ -156,7 +163,7 @@ def truelayer_signin():
         'redirect_uri': urljoin(APP_URL, 'truelayer_callback'),
         'enable_mock': 'true',
     })
-    auth_uri = f'https://auth.truelayer-sandbox.com/?{query}'
+    auth_uri = f'{TRUELAYER_AUTH_URL}/?{query}'
     return redirect(auth_uri)
     # return f'<a class="button" href="{auth_uri}">Truelayer Login</a>'
 
@@ -172,7 +179,7 @@ def truelayer_callback():
         'grant_type': 'authorization_code',
         'redirect_uri': urljoin(APP_URL, 'truelayer_callback'),
     }
-    res = requests.post('https://auth.truelayer-sandbox.com/connect/token', data=body)
+    res = requests.post(f'{TRUELAYER_AUTH_URL}/connect/token', data=body)
     token = res.json().get('access_token')
     if token:
         User.set_token(id_=current_user.id, token=token)
@@ -196,14 +203,14 @@ def generator(file_obj, buffer_size=8192):
 def download_transactions():
     token = current_user.token
     auth_header = {'Authorization': f'Bearer {token}'}
-    res = requests.get('https://api.truelayer-sandbox.com/data/v1/accounts', headers=auth_header)
+    res = requests.get(f'{TRUELAYER_API_URL}/data/v1/accounts', headers=auth_header)
     csv_data = StringIO(newline='')
     writer = csv.writer(csv_data)
     column_names = ['timestamp', 'description', 'transaction_category', 'amount']
     writer.writerow(column_names)
     for account in res.json()['results']:
         account_id = account['account_id']
-        url = f'https://api.truelayer-sandbox.com/data/v1/accounts/{account_id}/transactions'
+        url = f'{TRUELAYER_API_URL}/data/v1/accounts/{account_id}/transactions'
         res = requests.get(url, headers=auth_header)
         for transaction in res.json()['results']:
             writer.writerow([transaction[key] for key in column_names])
