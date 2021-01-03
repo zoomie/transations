@@ -23,7 +23,7 @@ TRUELAYER_CLIENT_SECRET = config('TRUELAYER_CLIENT_SECRET')
 GOOGLE_CLIENT_ID = config('GOOGLE_CLIENT_ID')
 GOOGLE_CLIENT_SECRET = config('GOOGLE_CLIENT_SECRET')
 GOOGLE_DISCOVERY_URL = ("https://accounts.google.com/.well-known/openid-configuration")
-APP_URL = config('API_URL', default='https://localhost:5000')
+APP_URL = config('APP_URL', default='https://localhost:5000')
 
 DB_PATH = str(Path().home().joinpath('db.sql'))
 
