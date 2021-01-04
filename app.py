@@ -32,6 +32,9 @@ GOOGLE_CLIENT_SECRET = os.environ['GOOGLE_CLIENT_SECRET']
 GOOGLE_OIDC_CONFIG = requests.get("https://accounts.google.com/.well-known/openid-configuration").json()
 APP_URL = os.environ['APP_URL']
 
+DEBUG = os.getenv('DEBUG', False)
+DEBUG = True if DEBUG in [True, 'True', 'true'] else False
+
 DB_PATH = str(Path().home().joinpath('db.sql'))
 
 app = Flask(__name__)
@@ -103,7 +106,8 @@ def load_user(user_id):
 @app.route("/")
 def index():
     if current_user.is_authenticated:
-        return f"<p>You're logged in {current_user.name}</p>"
+        return f'''<h2>You're logged in as {current_user.name}</h2>  
+                <a class="button" href="/truelayer_signin">Truelayer Login</a>'''
     else:
         return redirect(url_for('login'))
 
@@ -227,4 +231,5 @@ def logout():
     return redirect(url_for("index"))
 
 
-# app.run(ssl_context="adhoc")
+if DEBUG:
+    app.run(ssl_context="adhoc")
