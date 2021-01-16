@@ -3,19 +3,21 @@ import time
 import urllib
 import csv
 from io import StringIO
-import sqlite3
 import json
-from pathlib import Path
 from urllib.parse import urljoin
+from dotenv import load_dotenv
 
-from flask import Flask, redirect, request, url_for, current_app
+from flask import Flask, redirect, request, url_for, jsonify
 from werkzeug.datastructures import Headers
 from werkzeug.wrappers import Response
 import requests
 from flask_login import LoginManager, current_user, login_required, login_user,\
-    logout_user, UserMixin
+    logout_user
 from oauthlib.oauth2 import WebApplicationClient
 
+from db import setup_db, User, get_or_create_user, create_test_user
+
+load_dotenv()
 TRUELAYER_CLIENT_ID = os.environ['TRUELAYER_CLIENT_ID']
 TRUELAYER_CLIENT_SECRET = os.environ['TRUELAYER_CLIENT_SECRET']
 IS_SANDBOX = os.getenv('IS_SANDBOX', False)
@@ -35,67 +37,16 @@ APP_URL = os.environ['APP_URL']
 DEBUG = os.getenv('DEBUG', False)
 DEBUG = True if DEBUG in [True, 'True', 'true'] else False
 
-DB_PATH = str(Path().home().joinpath('db.sql'))
-
-app = Flask(__name__)
-app.secret_key = os.urandom(16)
+app = Flask(__name__, static_folder='frontend/build', static_url_path='/')
+app.secret_key = os.environ['FLASK_SECRET_KEY']
 
 login_manager = LoginManager()
+login_manager.login_view = '/login'
 login_manager.init_app(app)
+with app.app_context():
+    setup_db()
 
 client = WebApplicationClient(GOOGLE_CLIENT_ID)
-
-
-def setup_db():
-    conn = sqlite3.connect(DB_PATH)
-    try:
-        with app.open_resource("schema.sql") as f:
-            conn.executescript(f.read().decode("utf8"))
-            conn.commit()
-    except sqlite3.OperationalError:
-        pass
-
-
-setup_db()
-
-
-class User(UserMixin):
-    def __init__(self, id_, name, email, token=None):
-        self.id = id_
-        self.name = name
-        self.email = email
-        self.token = token
-
-    @staticmethod
-    def get(user_id):
-        conn = sqlite3.connect(DB_PATH)
-        cur = conn.cursor()
-        cur.execute("SELECT id, name, email, token FROM user WHERE id = ?", (user_id,))
-        user = cur.fetchone()
-        if not user:
-            return None
-        return User(id_=user[0], name=user[1], email=user[2], token=user[3])
-
-    @staticmethod
-    def create(id_, name, email):
-        conn = sqlite3.connect(DB_PATH)
-        cur = conn.cursor()
-        cur.execute(
-            "INSERT INTO user (id, name, email)"
-            " VALUES (?, ?, ?)",
-            (id_, name, email),
-        )
-        conn.commit()
-
-    @staticmethod
-    def set_token(id_, token):
-        conn = sqlite3.connect(DB_PATH)
-        cur = conn.cursor()
-        cur.execute(
-            '''UPDATE user SET token = ? WHERE id = ?''',
-            (token, id_),
-        )
-        conn.commit()
 
 
 @login_manager.user_loader
@@ -104,16 +55,19 @@ def load_user(user_id):
 
 
 @app.route("/")
+@login_required
 def index():
-    if current_user.is_authenticated:
-        return f'''<h2>You're logged in as {current_user.name}</h2>  
-                <a class="button" href="/truelayer_signin">Truelayer Login</a>'''
-    else:
-        return redirect(url_for('login'))
+    return app.send_static_file('index.html')
 
 
 @app.route("/login")
 def login():
+    if DEBUG:
+        user = create_test_user()
+        login_user(user)
+        return redirect(url_for('index'))
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
     request_uri = client.prepare_request_uri(
         GOOGLE_OIDC_CONFIG["authorization_endpoint"],
         redirect_uri=urljoin(APP_URL, "/google_callback"),
@@ -147,12 +101,9 @@ def google_callback():
     else:
         return "User email not available or not verified by Google.", 400
 
-    user = User(id_=unique_id, name=users_name, email=users_email, token=None)
-    if not User.get(unique_id):
-        User.create(unique_id, users_name, users_email)
-
-    login_user(user)
-    return redirect(url_for("truelayer_signin"))
+    user = get_or_create_user(id_=unique_id, name=users_name, email=users_email, token=None)
+    login_user(user, remember=True)
+    return redirect(url_for('index'))
 
 
 @app.route('/truelayer_signin', methods=['GET'])
@@ -168,8 +119,20 @@ def truelayer_signin():
         'enable_mock': 'true',
     })
     auth_uri = f'{TRUELAYER_AUTH_URL}/?{query}'
+    print(auth_uri)
     return redirect(auth_uri)
-    # return f'<a class="button" href="{auth_uri}">Truelayer Login</a>'
+
+
+def get_transactions_from_truelayer(token: str) -> list:
+    transactions = []
+    auth_header = {'Authorization': f'Bearer {token}'}
+    res = requests.get(f'{TRUELAYER_API_URL}/data/v1/accounts', headers=auth_header)
+    for account in res.json()['results']:
+        account_id = account['account_id']
+        url = f'{TRUELAYER_API_URL}/data/v1/accounts/{account_id}/transactions'
+        res = requests.get(url, headers=auth_header)
+        transactions.extend(res.json()['results'])
+    return transactions
 
 
 @app.route('/truelayer_callback', methods=['POST', 'GET'])
@@ -186,10 +149,9 @@ def truelayer_callback():
     res = requests.post(f'{TRUELAYER_AUTH_URL}/connect/token', data=body)
     token = res.json().get('access_token')
     if token:
-        User.set_token(id_=current_user.id, token=token)
-        return redirect(url_for('download_transactions'))
-    else:
-        return 'hello'
+        transactions = get_transactions_from_truelayer(token)
+        User.set_transactions(id_=current_user.id, transactions=transactions)
+    return redirect(url_for('index'))
 
 
 def generator(file_obj, buffer_size=8192):
@@ -202,26 +164,41 @@ def generator(file_obj, buffer_size=8192):
             break
 
 
-@app.route('/download_transactions', methods=['GET'])
-@login_required
-def download_transactions():
-    token = current_user.token
-    auth_header = {'Authorization': f'Bearer {token}'}
-    res = requests.get(f'{TRUELAYER_API_URL}/data/v1/accounts', headers=auth_header)
+def create_csv_response(transactions: list) -> Response:
     csv_data = StringIO(newline='')
     writer = csv.writer(csv_data)
     column_names = ['timestamp', 'description', 'transaction_category', 'amount']
     writer.writerow(column_names)
-    for account in res.json()['results']:
-        account_id = account['account_id']
-        url = f'{TRUELAYER_API_URL}/data/v1/accounts/{account_id}/transactions'
-        res = requests.get(url, headers=auth_header)
-        for transaction in res.json()['results']:
-            writer.writerow([transaction[key] for key in column_names])
-
+    for transaction in transactions:
+        writer.writerow([transaction[key] for key in column_names])
     headers = Headers()
     headers.set('Content-Disposition', 'attachment', filename='transactions.csv')
     return Response(generator(csv_data), mimetype='text/csv', headers=headers)
+
+
+@app.route('/api/transactions', methods=['GET'])
+@login_required
+def download_transactions():
+    if current_user.transactions:
+        if request.args.get('format') == 'csv':
+            return create_csv_response(current_user.transactions)
+        else:
+            transactions = []
+            for transaction in current_user.transactions:
+                transactions.append({
+                    'timestamp': transaction['timestamp'],
+                    'amount': transaction['running_balance']['amount']
+                })
+            return jsonify({'user_has_data': True, 'transactions': transactions})
+    return jsonify({'user_has_data': False})
+
+
+@app.route('/api/transactions/test', methods=['GET'])
+def test_api():
+    with app.open_resource('mock_data.json') as f:
+        data = json.load(f)
+        result = {'user_has_data': True, 'transactions': data}
+        return jsonify(result)
 
 
 @app.route("/logout")
@@ -232,4 +209,6 @@ def logout():
 
 
 if DEBUG:
-    app.run(ssl_context="adhoc")
+    # app.run(ssl_context="adhoc", debug=True)
+    app.run(debug=True)
+
