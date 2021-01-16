@@ -6,7 +6,8 @@ import Button from "./Button";
 
 export default function App() {
   const [dis, setDis] = useState(<Button></Button>);
-  const url = "/api/transactions";
+  const url = "/api/transactions/test";
+  // const url = "/api/transactions";
   let fetchAns = async () => {
     let res = await fetch(url);
     res = await res.json();

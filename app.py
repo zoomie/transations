@@ -176,6 +176,16 @@ def create_csv_response(transactions: list) -> Response:
     return Response(generator(csv_data), mimetype='text/csv', headers=headers)
 
 
+def format_for_graph(transactions: list) -> list:
+    result = []
+    for transaction in transactions:
+        result.append({
+            'timestamp': transaction['timestamp'],
+            'amount': transaction['running_balance']['amount']
+        })
+    return result
+
+
 @app.route('/api/transactions', methods=['GET'])
 @login_required
 def download_transactions():
@@ -183,13 +193,8 @@ def download_transactions():
         if request.args.get('format') == 'csv':
             return create_csv_response(current_user.transactions)
         else:
-            transactions = []
-            for transaction in current_user.transactions:
-                transactions.append({
-                    'timestamp': transaction['timestamp'],
-                    'amount': transaction['running_balance']['amount']
-                })
-            return jsonify({'user_has_data': True, 'transactions': transactions})
+            return jsonify({'user_has_data': True,
+                            'transactions': format_for_graph(current_user.transactions)})
     return jsonify({'user_has_data': False})
 
 
@@ -197,7 +202,7 @@ def download_transactions():
 def test_api():
     with app.open_resource('mock_data.json') as f:
         data = json.load(f)
-        result = {'user_has_data': True, 'transactions': data}
+        result = {'user_has_data': True, 'transactions': format_for_graph(data)}
         return jsonify(result)
 
 
