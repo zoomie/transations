@@ -138,8 +138,7 @@ def load_user(user_id):
 
 @app.route("/")
 def index():
-    return 'Hello world'
-    # return app.send_static_file('index.html')
+    return app.send_static_file('index.html')
 
 
 @app.route("/login")
