@@ -15,7 +15,6 @@ itsdangerous==1.1.0
 Jinja2==2.11.2
 MarkupSafe==1.1.1
 oauthlib==3.1.0
-pipenv==2020.11.15
 pycparser==2.20
 pyOpenSSL==20.0.1
 python-dotenv==0.15.0
