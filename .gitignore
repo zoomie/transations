@@ -1,4 +1,4 @@
 *.pyc
-app/.env
-app/venv
+web/.env
+web/venv
 .idea

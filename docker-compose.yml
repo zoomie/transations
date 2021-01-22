@@ -1,0 +1,11 @@
+version: "3"
+services:
+  web:
+    build: ./web
+  nginx:
+    build: ./nginx
+    ports:
+      - 80:80
+      - 443:443
+    depends_on:
+      - web
