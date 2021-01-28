@@ -1,6 +1,7 @@
 FROM python:3
 RUN apt-get update &&\
-    apt-get -y install npm
+    apt-get -y install npm &&\
+    npm i npm@latest -g
 
 ENV APP /app
 RUN mkdir $APP
@@ -13,6 +14,6 @@ RUN pip install --upgrade pip &&\
 COPY . .
 RUN cd /app/frontend &&\
     npm install &&\
-    npm build
+    npm run build
 
 CMD [ "uwsgi", "--ini", "app.ini" ]
