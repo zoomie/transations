@@ -1,7 +1,6 @@
 FROM python:3
 RUN apt-get update &&\
-    apt-get -y install npm &&\
-    npm install --global yarn
+    apt-get -y install npm
 
 ENV APP /app
 RUN mkdir $APP
@@ -13,8 +12,7 @@ RUN pip install --upgrade pip &&\
 
 COPY . .
 RUN cd /app/frontend &&\
-    yarn install &&\
-    yarn build &&\
-    cd ${APP}
+    npm install &&\
+    npm build
 
 CMD [ "uwsgi", "--ini", "app.ini" ]
