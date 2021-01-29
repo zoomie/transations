@@ -183,7 +183,7 @@ def google_callback():
     else:
         return "User email not available or not verified by Google.", 400
 
-    user = get_or_create_user(id_=unique_id, name=users_name, email=users_email, token=None)
+    user = get_or_create_user(id_=unique_id, name=users_name, email=users_email)
     login_user(user, remember=True)
     return redirect(url_for('index'))
 
